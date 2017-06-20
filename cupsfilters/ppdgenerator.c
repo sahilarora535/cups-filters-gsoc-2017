@@ -553,6 +553,9 @@ ppdCreateFromIPP(char   *buffer,	/* I - Filename buffer */
       if (!_cups_strncasecmp(format, "application/pdf", 15)) {
         cupsFilePuts(fp, "*cupsFilter2: \"application/vnd.cups-pdf application/pdf 0 -\"\n");
 	formatfound = 1;
+      } else if (!_cups_strncasecmp(format, "application/PCLm", 16)) {
+        cupsFilePuts(fp, "*cupsFilter2: \"application/PCLm application/PCLm 10 -\"\n");
+	formatfound = 1;
       } else if (!_cups_strncasecmp(format, "application/postscript", 22)) {
 	/* We put a high cost factor here as if a printer supports also
 	   another format, like PWG or Apple Raster, we prefer it, as many
