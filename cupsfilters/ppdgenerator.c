@@ -612,6 +612,43 @@ ppdCreateFromIPP(char   *buffer,	/* I - Filename buffer */
     goto bad_ppd;
 
  /*
+  * cupsPCLm attributes 
+  * cupsPCLmStripHeightSupported/cupsPCLmStripHeightPreferred
+  * cupsPCLmRasterBackSide/cupsPCLmCompressionMethodPreferred
+  * cupsPCLmSourceResolutionSupported/cupsPCLmSourceResolutionDefault
+  */
+
+  if ((attr = ippFindAttribute(response, "pclm-strip-height-supported", IPP_TAG_INTEGER)) != NULL)
+    cupsFilePrintf(fp, "*cupsPCLmStripHeightSupported: %d\n", ippGetInteger(attr, 0));
+  
+  if ((attr = ippFindAttribute(response, "pclm-strip-height-preferred", IPP_TAG_INTEGER)) != NULL)
+    cupsFilePrintf(fp, "*cupsPCLmStripHeightPreferred: %d\n", ippGetInteger(attr, 0));
+
+  if ((attr = ippFindAttribute(response, "pclm-raster-back-side", IPP_TAG_KEYWORD)) != NULL)
+    cupsFilePrintf(fp, "*cupsPCLmRasterBackSide: %s\n", ippGetString(attr, 0, NULL));
+
+  if ((attr = ippFindAttribute(response, "pclm-compression-method-preferred", IPP_TAG_KEYWORD)) != NULL)
+    cupsFilePrintf(fp, "*cupsPCLmCompressionMethodPreferred: %s\n", ippGetString(attr, 0, NULL));
+  
+  if ((attr = ippFindAttribute(response, "pclm-source-resolution-supported", IPP_TAG_RESOLUTION)) != NULL)
+  {
+    pwg_ppdize_resolution(attr, 0, &xres, &yres, ppdname, sizeof(ppdname));
+    cupsFilePrintf(fp, "*cupsPCLmSourceResolutionSupported: \"%s", ppdname);
+    for (i = 1, count = ippGetCount(attr); i < count; i ++)
+    {
+      pwg_ppdize_resolution(attr, i, &xres, &yres, ppdname, sizeof(ppdname));
+      cupsFilePrintf(fp, ",%s", ppdname);
+    }
+    cupsFilePuts(fp, "\"\n");
+  }
+
+  if ((attr = ippFindAttribute(response, "pclm-source-resolution-default", IPP_TAG_RESOLUTION)) != NULL)
+  {
+    pwg_ppdize_resolution(attr, 0, &xres, &yres, ppdname, sizeof(ppdname));
+    cupsFilePrintf(fp, "*cupsPCLmSourceResolutionDefault: %s\n", ppdname);
+  }
+
+ /*
   * PageSize/PageRegion/ImageableArea/PaperDimension
   */
 
