@@ -87,3 +87,6 @@ testcmyk
 testrgb
 *.tar.*
 compile
+
+# Unignore directories with names of executables 
+!*/
