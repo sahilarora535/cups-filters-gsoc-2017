@@ -612,41 +612,51 @@ ppdCreateFromIPP(char   *buffer,	/* I - Filename buffer */
     goto bad_ppd;
 
  /*
-  * cupsPCLm attributes 
-  * cupsPCLmStripHeightSupported/cupsPCLmStripHeightPreferred
-  * cupsPCLmRasterBackSide/cupsPCLmCompressionMethodPreferred
-  * cupsPCLmSourceResolutionSupported/cupsPCLmSourceResolutionDefault
+  * Generically check for PCLm attributes in IPP response
+  * and ppdize them one by one
   */
 
-  if ((attr = ippFindAttribute(response, "pclm-strip-height-supported", IPP_TAG_INTEGER)) != NULL)
-    cupsFilePrintf(fp, "*cupsPCLmStripHeightSupported: %d\n", ippGetInteger(attr, 0));
-  
-  if ((attr = ippFindAttribute(response, "pclm-strip-height-preferred", IPP_TAG_INTEGER)) != NULL)
-    cupsFilePrintf(fp, "*cupsPCLmStripHeightPreferred: %d\n", ippGetInteger(attr, 0));
-
-  if ((attr = ippFindAttribute(response, "pclm-raster-back-side", IPP_TAG_KEYWORD)) != NULL)
-    cupsFilePrintf(fp, "*cupsPCLmRasterBackSide: %s\n", ippGetString(attr, 0, NULL));
-
-  if ((attr = ippFindAttribute(response, "pclm-compression-method-preferred", IPP_TAG_KEYWORD)) != NULL)
-    cupsFilePrintf(fp, "*cupsPCLmCompressionMethodPreferred: %s\n", ippGetString(attr, 0, NULL));
-  
-  if ((attr = ippFindAttribute(response, "pclm-source-resolution-supported", IPP_TAG_RESOLUTION)) != NULL)
+  attr = ippFirstAttribute(response); /* first attribute */
+  while (attr)                        /* loop through all the attributes */
   {
-    pwg_ppdize_resolution(attr, 0, &xres, &yres, ppdname, sizeof(ppdname));
-    cupsFilePrintf(fp, "*cupsPCLmSourceResolutionSupported: \"%s", ppdname);
-    for (i = 1, count = ippGetCount(attr); i < count; i ++)
+    if (_cups_strncasecmp(ippGetName(attr), "pclm", 4) == 0)
     {
-      pwg_ppdize_resolution(attr, i, &xres, &yres, ppdname, sizeof(ppdname));
-      cupsFilePrintf(fp, ",%s", ppdname);
+      pwg_ppdize_name(ippGetName(attr), ppdname, sizeof(ppdname));
+      cupsFilePrintf(fp, "*cups%s: ", ppdname);
+      ipp_tag_t tag = ippGetValueTag(attr);
+      count = ippGetCount(attr);
+
+      if (tag == IPP_TAG_RESOLUTION)  /* ppdize values of type resolution */
+      {
+        pwg_ppdize_resolution(attr, 0, &xres, &yres, ppdname, sizeof(ppdname));
+        if (count > 1)
+        {
+          cupsFilePrintf(fp, "\"%s", ppdname);
+          for (i = 1, count = ippGetCount(attr); i < count; i ++)
+          {
+            pwg_ppdize_resolution(attr, i, &xres, &yres, ppdname, sizeof(ppdname));
+            cupsFilePrintf(fp, ",%s", ppdname);
+          }
+          cupsFilePuts(fp, "\"\n");
+        }
+        else
+          cupsFilePrintf(fp, "%s\n", ppdname);
+      }
+      else
+      {
+        ippAttributeString(attr, ppdname, sizeof(ppdname));
+        if (count > 1 || /* quotes around multi-valued and string attributes */
+            tag == IPP_TAG_STRING ||
+            tag == IPP_TAG_TEXT ||
+            tag == IPP_TAG_TEXTLANG)
+          cupsFilePrintf(fp, "\"%s\"\n", ppdname);
+        else
+          cupsFilePrintf(fp, "%s\n", ppdname);
+      }
     }
-    cupsFilePuts(fp, "\"\n");
+    attr = ippNextAttribute(response);
   }
 
-  if ((attr = ippFindAttribute(response, "pclm-source-resolution-default", IPP_TAG_RESOLUTION)) != NULL)
-  {
-    pwg_ppdize_resolution(attr, 0, &xres, &yres, ppdname, sizeof(ppdname));
-    cupsFilePrintf(fp, "*cupsPCLmSourceResolutionDefault: %s\n", ppdname);
-  }
 
  /*
   * PageSize/PageRegion/ImageableArea/PaperDimension
