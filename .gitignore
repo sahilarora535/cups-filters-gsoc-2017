@@ -1,6 +1,5 @@
 Makefile.in
 aclocal.m4
-autom4te.cache
 config.guess
 config.log
 config.sub
@@ -15,14 +14,15 @@ m4/ltoptions.m4
 m4/ltsugar.m4
 m4/ltversion.m4
 m4/lt~obsolete.m4
-.deps
 Makefile
-*.o
 stamp-h1
 config.h
-.libs
-.la
-.lo
+
+# *.lo, *.la *.o files
+*.o
+*.la
+*.lo
+
 libcupsfilters.la
 libcupsfilters_la-attr.lo
 libcupsfilters_la-cmyk.lo
@@ -60,6 +60,8 @@ fontfile.lo
 frequent.lo
 sfnt.lo
 sfnt_subset.lo
+
+# Binaries
 bannertopdf
 commandtoescpx
 commandtopclx
@@ -85,8 +87,50 @@ test_pdf1
 test_ps
 testcmyk
 testrgb
+cups-browsed
+cups-notifier.c
+cups-notifier.h
+driverless
+brftoembosser
+imageubrltoindexv3
+imageubrltoindexv4
+index.sh
+indexv3.sh
+indexv4.sh
+textbrftoindexv3
+filter/braille/filters/cups-braille.sh
+filter/braille/filters/imagetobrf
+filter/braille/filters/liblouis1.defs
+filter/braille/filters/liblouis1.defs.gen
+filter/braille/filters/liblouis2.defs
+filter/braille/filters/liblouis3.defs
+filter/braille/filters/liblouis4.defs
+filter/braille/filters/texttobrf
+filter/foomatic-rip/foomatic-rip.1
+foomatic-rip
+gstoraster
+implicitclass
+libcupsfilters.pc
+libfontembed.pc
+mime/cupsfilters.convs
+mupdftoraster
+rastertopdf
+rastertops
+sys5ippprinter
+test-driver
+texttotext
+beh
+utils/cups-browsed
+utils/cups-browsed.conf
 *.tar.*
 compile
 
 # Unignore directories with names of executables 
 !*/
+
+# Ignore directories starting in period
+.*
+!.gitignore
+
+# Ignore autom4te.cache folder
+autom4te.cache
