@@ -87,6 +87,10 @@
 
 #define iprintf(format, ...) fprintf(stderr, "INFO: (" PROGRAM ") " format, __VA_ARGS__)
 
+typedef enum {
+  OUTPUT_FORMAT_PDF,
+  OUTPUT_FORMAT_PCLM
+} OutFormatType;
 
 // Color conversion function
 typedef unsigned char *(*convertFunction)(unsigned char *src,
@@ -980,6 +984,8 @@ const char * getIPPColorProfileName(const char * media_type, cups_cspace_t cs, u
 
 int main(int argc, char **argv)
 {
+    char *outformat_env = NULL;
+    OutFormatType outformat; /* Output format */
     int fd, Page;
     struct pdf_info pdf;
     FILE * input = NULL;
@@ -1001,6 +1007,20 @@ int main(int argc, char **argv)
         return 1;
     }
 
+    /* Determine the output format via an environment variable set by a wrapper
+        script */
+      if ((outformat_env = getenv("OUTFORMAT")) == NULL || strcasestr(outformat_env, "pdf"))
+        outformat = OUTPUT_FORMAT_PDF;
+      else if (strcasestr(outformat_env, "pclm"))
+        outformat = OUTPUT_FORMAT_PCLM;
+      else {
+        fprintf(stderr, "ERROR: OUTFORMAT=\"%s\", cannot determine output format\n",
+          outformat_env);
+        return 1;
+      }
+      fprintf(stderr, "DEBUG: OUTFORMAT=\"%s\", output format will be %s\n",
+        outformat_env, (outformat == OUTPUT_FORMAT_PDF ? "PDF" : "PCLM"));
+  
     num_options = cupsParseOptions(argv[5], 0, &options);  
 
     /* support the CUPS "cm-calibration" option */ 
