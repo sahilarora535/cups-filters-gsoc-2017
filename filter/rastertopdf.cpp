@@ -207,7 +207,8 @@ struct pdf_info
         line_bytes(0),
         bpp(0), bpc(0), render_intent(""),
         color_space(CUPS_CSPACE_K),
-        page_width(0),page_height(0)
+        page_width(0),page_height(0),
+        outformat(OUTPUT_FORMAT_PDF)
     {
     }
 
@@ -223,12 +224,14 @@ struct pdf_info
     cups_cspace_t color_space;
     PointerHolder<Buffer> page_data;
     double page_width,page_height;
+    OutFormatType outformat;
 };
 
-int create_pdf_file(struct pdf_info * info)
+int create_pdf_file(struct pdf_info * info, const OutFormatType & outformat)
 {
     try {
         info->pdf.emptyPDF();
+        info->outformat = outformat;
     } catch (...) {
         return 1;
     }
@@ -851,6 +854,9 @@ int close_pdf_file(struct pdf_info * info)
 
         QPDFWriter output(info->pdf,NULL);
 //        output.setMinimumPDFVersion("1.4");
+        if (info->outformat == OUTPUT_FORMAT_PCLM)
+          output.setExtraHeaderText("%PCLm-1.0"); // extra header required for PCLm
+        
         output.write();
     } catch (...) {
         return 1;
@@ -1070,7 +1076,7 @@ int main(int argc, char **argv)
     Page = 0;
 
     // Create PDF file
-    if (create_pdf_file(&pdf) != 0)
+    if (create_pdf_file(&pdf, outformat) != 0)
       die("Unable to create PDF file");
 
     while (cupsRasterReadHeader2(ras, &header))
