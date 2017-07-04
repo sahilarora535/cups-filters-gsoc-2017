@@ -187,6 +187,35 @@ unsigned char *noColorConversion(unsigned char *src,
     return src;
 }
 
+/**
+ * 'split_strings()' - Split a string to a vector of strings given some delimiters
+ * O - std::vector of std::string after splitting
+ * I - input string to be split
+ * I - string containing delimiters
+ */
+static std::vector<std::string>
+split_strings(std::string const &str, std::string delimiters = ",")
+{
+  std::vector<std::string> vec(0);
+  std::string value = "";
+  bool push_flag = false;
+
+  for (size_t i = 0; i < str.size(); i ++)
+  {
+    if (push_flag && !(value.empty()))
+    {
+      vec.push_back(value);
+      push_flag = false;
+      value.clear();
+    }
+
+    if (delimiters.find(str[i]) != std::string::npos)
+      push_flag = true;
+    else
+      value += str[i];
+  }
+  return vec;
+}
 
 
 
@@ -208,6 +237,12 @@ struct pdf_info
         bpp(0), bpc(0), render_intent(""),
         color_space(CUPS_CSPACE_K),
         page_width(0),page_height(0),
+        pclm_strip_height_preferred(16),  /* default strip height */
+        pclm_strip_height_supported(1, 16),
+        pclm_compression_method_preferred(0),
+        pclm_source_resolution_supported(0),
+        pclm_source_resolution_default(""),
+        pclm_raster_back_side(""),
         outformat(OUTPUT_FORMAT_PDF)
     {
     }
@@ -220,6 +255,12 @@ struct pdf_info
     unsigned line_bytes;
     unsigned bpp;
     unsigned bpc;
+    unsigned                  pclm_strip_height_preferred;
+    std::vector<unsigned>     pclm_strip_height_supported;
+    std::vector<std::string>  pclm_compression_method_preferred;
+    std::vector<std::string>  pclm_source_resolution_supported;
+    std::string               pclm_source_resolution_default;
+    std::string               pclm_raster_back_side;
     std::string render_intent;
     cups_cspace_t color_space;
     PointerHolder<Buffer> page_data;
@@ -998,6 +1039,7 @@ int main(int argc, char **argv)
     cups_raster_t	*ras;		/* Raster stream for printing */
     cups_page_header2_t	header;		/* Page header from file */
     ppd_file_t		*ppd;		/* PPD file */
+    ppd_attr_t    *attr;  /* PPD attribute */
     int			num_options;	/* Number of options */
     const char*         profile_name;	/* IPP Profile Name */
     cups_option_t	*options;	/* Options */
@@ -1078,6 +1120,63 @@ int main(int argc, char **argv)
     // Create PDF file
     if (create_pdf_file(&pdf, outformat) != 0)
       die("Unable to create PDF file");
+
+    /* Get PCLm attributes from PPD */
+    if (ppd && outformat == OUTPUT_FORMAT_PCLM)
+    {
+      char *attr_name = "cupsPclmStripHeightPreferred";
+      if ((attr = ppdFindAttr(ppd, attr_name, NULL)) != NULL)
+      {
+        fprintf(stderr, "DEBUG: PPD PCLm attribute \"%s\" with value \"%s\"\n",
+            attr_name, attr->value);
+        pdf.pclm_strip_height_preferred = atoi(attr->value);
+      }
+      else
+        pdf.pclm_strip_height_preferred = 16; /* default strip height */
+
+      attr_name = "cupsPclmStripHeightSupported";
+      if ((attr = ppdFindAttr(ppd, attr_name, NULL)) != NULL)
+      {
+        fprintf(stderr, "DEBUG: PPD PCLm attribute \"%s\" with value \"%s\"\n",
+            attr_name, attr->value);
+        std::vector<std::string> vec = split_strings(attr->value, ",");
+        for (size_t i = 0; i < vec.size(); i ++)
+          pdf.pclm_strip_height_supported.push_back(atoi(vec[i].c_str()));
+        vec.clear();
+      }
+
+      attr_name = "cupsPclmRasterBackSide";
+      if ((attr = ppdFindAttr(ppd, attr_name, NULL)) != NULL)
+      {
+        fprintf(stderr, "DEBUG: PPD PCLm attribute \"%s\" with value \"%s\"\n",
+            attr_name, attr->value);
+        pdf.pclm_raster_back_side = attr->value;
+      }
+
+      attr_name = "cupsPclmSourceResolutionDefault";
+      if ((attr = ppdFindAttr(ppd, attr_name, NULL)) != NULL)
+      {
+        fprintf(stderr, "DEBUG: PPD PCLm attribute \"%s\" with value \"%s\"\n",
+            attr_name, attr->value);
+        pdf.pclm_source_resolution_default = attr->value;
+      }
+
+      attr_name = "cupsPclmSourceResolutionSupported";
+      if ((attr = ppdFindAttr(ppd, attr_name, NULL)) != NULL)
+      {
+        fprintf(stderr, "DEBUG: PPD PCLm attribute \"%s\" with value \"%s\"\n",
+            attr_name, attr->value);
+        pdf.pclm_source_resolution_supported = split_strings(attr->value, ",");
+      }
+
+      attr_name = "cupsPclmCompressionMethodPreferred";
+      if ((attr = ppdFindAttr(ppd, attr_name, NULL)) != NULL)
+      {
+        fprintf(stderr, "DEBUG: PPD PCLm attribute \"%s\" with value \"%s\"\n",
+            attr_name, attr->value);
+        pdf.pclm_compression_method_preferred = split_strings(attr->value, ",");
+      }
+    }
 
     while (cupsRasterReadHeader2(ras, &header))
     {
