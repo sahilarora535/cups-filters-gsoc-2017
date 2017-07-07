@@ -1074,7 +1074,8 @@ int main(int argc, char **argv)
     /* support the CUPS "cm-calibration" option */ 
     cm_calibrate = cmGetCupsColorCalibrateMode(options, num_options);
 
-    if (cm_calibrate == CM_CALIBRATION_ENABLED)
+    if (outformat == OUTPUT_FORMAT_PCLM ||
+        cm_calibrate == CM_CALIBRATION_ENABLED)
       cm_disabled = 1;
     else
       cm_disabled = cmIsPrinterCmDisabled(getenv("PRINTER"));
@@ -1186,7 +1187,8 @@ int main(int argc, char **argv)
 
       // Use "profile=profile_name.icc" to embed 'profile_name.icc' into the PDF
       // for testing. Forces color management to enable.
-      if ((profile_name = cupsGetOption("profile", num_options, options)) != NULL) {
+      if (outformat == OUTPUT_FORMAT_PDF &&
+          (profile_name = cupsGetOption("profile", num_options, options)) != NULL) {
         setProfile(profile_name);
         cm_disabled = 0;
       }
