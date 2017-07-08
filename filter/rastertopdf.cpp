@@ -237,6 +237,7 @@ struct pdf_info
         bpp(0), bpc(0), render_intent(""),
         color_space(CUPS_CSPACE_K),
         page_width(0),page_height(0),
+        pclm_num_strips(0),
         pclm_strip_height_preferred(16),  /* default strip height */
         pclm_strip_height_supported(1, 16),
         pclm_compression_method_preferred(0),
@@ -255,6 +256,7 @@ struct pdf_info
     unsigned line_bytes;
     unsigned bpp;
     unsigned bpc;
+    unsigned                  pclm_num_strips;
     unsigned                  pclm_strip_height_preferred;
     std::vector<unsigned>     pclm_strip_height_supported;
     std::vector<std::string>  pclm_compression_method_preferred;
@@ -703,7 +705,24 @@ void finish_page(struct pdf_info * info)
     std::string content;
     content.append(QUtil::double_to_string(info->page_width) + " 0 0 " + 
                    QUtil::double_to_string(info->page_height) + " 0 0 cm\n");
-    content.append("/I Do\n");
+    switch(info->outformat)
+    {
+      case OUTPUT_FORMAT_PDF:
+        content.append("/I Do\n");
+        break;
+      case OUTPUT_FORMAT_PCLM:
+        for (int i = 0; i < info->pclm_num_strips; i ++)
+        {
+          content.append("/P <</MCID 0>> BDC q\n");
+          content.append(QUtil::int_to_string(info->width) + " 0 0 " +
+                         QUtil::int_to_string(info->pclm_strip_height_preferred) +
+                         " 0 0 cm\n");
+          content.append("/Image" + QUtil::int_to_string(i) + " Do Q\n");
+        }
+        break;
+      default:  break;
+    }
+
     info->page.getKey("/Contents").replaceStreamData(content,QPDFObjectHandle::newNull(),QPDFObjectHandle::newNull());
 
     // bookkeeping
@@ -735,6 +754,9 @@ int prepare_pdf_page(struct pdf_info * info, int width, int height, int bpl,
     info->bpc = bpc;
     info->render_intent = render_intent;
     info->color_space = color_space;
+    if (info->outformat == OUTPUT_FORMAT_PCLM)
+      info->pclm_num_strips = (height / info->pclm_strip_height_preferred) +
+                              (height % info->pclm_strip_height_preferred ? 1 : 0);
 
     /* Invert grayscale by default */
     if (color_space == CUPS_CSPACE_K)
