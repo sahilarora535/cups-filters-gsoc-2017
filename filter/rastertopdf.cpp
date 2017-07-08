@@ -897,7 +897,7 @@ int close_pdf_file(struct pdf_info * info)
 //        output.setMinimumPDFVersion("1.4");
         if (info->outformat == OUTPUT_FORMAT_PCLM)
           output.setExtraHeaderText("%PCLm-1.0"); // extra header required for PCLm
-        
+        output.setStreamDataMode(qpdf_s_preserve);  // For debugging
         output.write();
     } catch (...) {
         return 1;
