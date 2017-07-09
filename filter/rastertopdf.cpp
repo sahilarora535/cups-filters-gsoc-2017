@@ -244,6 +244,7 @@ struct pdf_info
         pclm_source_resolution_supported(0),
         pclm_source_resolution_default(""),
         pclm_raster_back_side(""),
+        pclm_strip_data(0),
         outformat(OUTPUT_FORMAT_PDF)
     {
     }
@@ -263,6 +264,7 @@ struct pdf_info
     std::vector<std::string>  pclm_source_resolution_supported;
     std::string               pclm_source_resolution_default;
     std::string               pclm_raster_back_side;
+    std::vector< PointerHolder<Buffer> > pclm_strip_data;
     std::string render_intent;
     cups_cspace_t color_space;
     PointerHolder<Buffer> page_data;
@@ -727,6 +729,7 @@ void finish_page(struct pdf_info * info)
 
     // bookkeeping
     info->page_data = PointerHolder<Buffer>();
+    info->pclm_strip_data.clear();
 }
 
 
@@ -755,8 +758,11 @@ int prepare_pdf_page(struct pdf_info * info, int width, int height, int bpl,
     info->render_intent = render_intent;
     info->color_space = color_space;
     if (info->outformat == OUTPUT_FORMAT_PCLM)
+    {
       info->pclm_num_strips = (height / info->pclm_strip_height_preferred) +
                               (height % info->pclm_strip_height_preferred ? 1 : 0);
+      info->pclm_strip_data.resize(info->pclm_num_strips);
+    }
 
     /* Invert grayscale by default */
     if (color_space == CUPS_CSPACE_K)
@@ -881,7 +887,14 @@ int add_pdf_page(struct pdf_info * info, int pagen, unsigned width,
         if (info->height > (std::numeric_limits<unsigned>::max() / info->line_bytes)) {
             die("Page too big");
         }
-        info->page_data = PointerHolder<Buffer>(new Buffer(info->line_bytes*info->height));
+        if (info->outformat == OUTPUT_FORMAT_PDF)
+          info->page_data = PointerHolder<Buffer>(new Buffer(info->line_bytes*info->height));
+        else if (info->outformat == OUTPUT_FORMAT_PCLM)
+        {
+          // reserve space for PCLm strips
+          for (size_t i = 0; i < info->pclm_num_strips; i ++)
+            info->pclm_strip_data[i] = PointerHolder<Buffer>(new Buffer(info->line_bytes*info->pclm_strip_height_preferred));
+        }
 
         QPDFObjectHandle page = QPDFObjectHandle::parse(
             "<<"
@@ -937,8 +950,20 @@ void pdf_set_line(struct pdf_info * info, unsigned line_n, unsigned char *line)
         dprintf("Bad line %d\n", line_n);
         return;
     }
-  
-    memcpy((info->page_data->getBuffer()+(line_n*info->line_bytes)), line, info->line_bytes);
+
+    switch(info->outformat)
+    {
+      case OUTPUT_FORMAT_PDF:
+        memcpy((info->page_data->getBuffer()+(line_n*info->line_bytes)), line, info->line_bytes);
+        break;
+      case OUTPUT_FORMAT_PCLM:
+        // copy line data into appropriate pclm strip
+        size_t strip_num = line_n / info->pclm_strip_height_preferred;
+        unsigned line_strip = line_n - strip_num*info->pclm_strip_height_preferred;
+        memcpy(((info->pclm_strip_data[strip_num])->getBuffer() + (line_strip*info->line_bytes)),
+               line, info->line_bytes);
+        break;
+    }
 }
 
 int convert_raster(cups_raster_t *ras, unsigned width, unsigned height,
