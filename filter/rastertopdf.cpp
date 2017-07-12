@@ -807,6 +807,7 @@ void finish_page(struct pdf_info * info)
                          " 0 0 cm\n");
           content.append("/Image" + QUtil::int_to_string(i) + " Do Q\n");
         }
+        content.append("/P <</MCID 0>> BDC q\n");
         break;
       default:  break;
     }
