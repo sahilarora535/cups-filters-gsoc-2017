@@ -366,8 +366,9 @@ void convertPdf_InvertColors(struct pdf_info * info)
 }
 
 
-
-#define PRE_COMPRESS
+// Supress Flate Compression for testing
+// TODO: Undo supress
+// #define PRE_COMPRESS
 
 // Create an '/ICCBased' array and embed a previously 
 // set ICC Profile in the PDF
@@ -542,6 +543,70 @@ QPDFObjectHandle getCalGrayArray(double wp[3], double gamma[1], double bp[3])
     return ret;
 }
 
+/**
+ * 'makePclmStrips()' - return an std::vector of QPDFObjectHandle, each containing the
+ *                      stream data of the various strips which make up a PCLm page.
+ * O - std::vector of QPDFObjectHandle
+ * I - QPDF object
+ * I - number of strips per page
+ * I - std::vector of PointerHolder<Buffer> containing data for each strip
+ * I - strip width
+ * I - strip height
+ * I - color space
+ * I - bits per component
+ */
+std::vector<QPDFObjectHandle>
+makePclmStrips(QPDF &pdf, unsigned num_strips,
+               std::vector< PointerHolder<Buffer> > &strip_data,
+               unsigned width, unsigned height, cups_cspace_t cs, unsigned bpc)
+{
+    std::vector<QPDFObjectHandle> ret(num_strips);
+    for (size_t i = 0; i < num_strips; i ++)
+      ret[i] = QPDFObjectHandle::newStream(&pdf);
+
+    // Strip stream dictionary
+    std::map<std::string,QPDFObjectHandle> dict;
+
+    dict["/Type"]=QPDFObjectHandle::newName("/XObject");
+    dict["/Subtype"]=QPDFObjectHandle::newName("/Image");
+    dict["/Width"]=QPDFObjectHandle::newInteger(width);
+    dict["/Height"]=QPDFObjectHandle::newInteger(height);
+    dict["/BitsPerComponent"]=QPDFObjectHandle::newInteger(bpc);
+
+    /* Write "/ColorSpace" dictionary based on raster input */
+    switch(cs) {
+      case CUPS_CSPACE_K:
+      case CUPS_CSPACE_SW:
+        dict["/ColorSpace"]=QPDFObjectHandle::newName("/DeviceGray");
+        break;
+      case CUPS_CSPACE_RGB:
+      case CUPS_CSPACE_SRGB:
+      case CUPS_CSPACE_ADOBERGB:
+        dict["/ColorSpace"]=QPDFObjectHandle::newName("/DeviceRGB");
+        break;
+      default:
+        fputs("DEBUG: Color space not supported.\n", stderr); 
+        return std::vector<QPDFObjectHandle>(num_strips, QPDFObjectHandle());
+    }
+
+    for (size_t i = 0; i < num_strips; i ++)
+    {
+      ret[i].replaceDict(QPDFObjectHandle::newDictionary(dict));
+#ifdef PRE_COMPRESS
+      // we deliver already compressed content (instead of letting QPDFWriter do it), to avoid using excessive memory
+      Pl_Buffer psink("psink");
+      Pl_Flate pflate("pflate",&psink,Pl_Flate::a_deflate);
+      pflate.write(strip_data[i]->getBuffer(),strip_data[i]->getSize());
+      pflate.finish();
+      ret[i].replaceStreamData(PointerHolder<Buffer>(psink.getBuffer()),
+                            QPDFObjectHandle::newName("/FlateDecode"),QPDFObjectHandle::newNull());
+#else
+      ret[i].replaceStreamData(strip_data[i], QPDFObjectHandle::newNull(), QPDFObjectHandle::newNull());
+#endif
+    }
+    return ret;
+}
+
 QPDFObjectHandle makeImage(QPDF &pdf, PointerHolder<Buffer> page_data, unsigned width, 
                            unsigned height, std::string render_intent, cups_cspace_t cs, unsigned bpc)
 {
@@ -693,15 +758,36 @@ QPDFObjectHandle makeImage(QPDF &pdf, PointerHolder<Buffer> page_data, unsigned 
 
 void finish_page(struct pdf_info * info)
 {
-    //Finish previous Page
-    if(!info->page_data.getPointer())
+    if (info->outformat == OUTPUT_FORMAT_PDF)
+    {
+      // Finish previous PDF Page
+      if(!info->page_data.getPointer())
+          return;
+
+      QPDFObjectHandle image = makeImage(info->pdf, info->page_data, info->width, info->height, info->render_intent, info->color_space, info->bpc);
+      if(!image.isInitialized()) die("Unable to load image data");
+
+      // add it
+      info->page.getKey("/Resources").getKey("/XObject").replaceKey("/I",image);
+    }
+    else if (info->outformat == OUTPUT_FORMAT_PCLM)
+    {
+      // Finish previous PCLm page
+      if (info->pclm_num_strips == 0)
         return;
 
-    QPDFObjectHandle image = makeImage(info->pdf, info->page_data, info->width, info->height, info->render_intent, info->color_space, info->bpc);
-    if(!image.isInitialized()) die("Unable to load image data");
+      for (size_t i = 0; i < info->pclm_strip_data.size(); i ++)
+        if(!info->pclm_strip_data[i].getPointer())
+          return;
 
-    // add it
-    info->page.getKey("/Resources").getKey("/XObject").replaceKey("/I",image);
+      std::vector<QPDFObjectHandle> strips = makePclmStrips(info->pdf, info->pclm_num_strips, info->pclm_strip_data, info->width, info->pclm_strip_height_preferred, info->color_space, info->bpc);
+      for (size_t i = 0; i < info->pclm_num_strips; i ++)
+        if(!strips[i].isInitialized()) die("Unable to load strip data");
+
+      // add it
+      for (size_t i = 0; i < info->pclm_num_strips; i ++)
+        info->page.getKey("/Resources").getKey("/XObject").replaceKey("/Image" + QUtil::int_to_string(i),strips[i]);
+    }
 
     // draw it
     std::string content;
@@ -744,7 +830,7 @@ int prepare_pdf_page(struct pdf_info * info, int width, int height, int bpl,
 #define IMAGE_WHITE_1  (bpp == 1 && bpc == 1)
 #define IMAGE_WHITE_8  (bpp == 8 && bpc == 8)
 #define IMAGE_WHITE_16 (bpp == 16 && bpc == 16)    
-     
+
     int error = 0;
     pdfConvertFunction fn = convertPdf_NoConversion;
     cmsColorSpaceSignature css;
