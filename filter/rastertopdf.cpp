@@ -1187,6 +1187,7 @@ int main(int argc, char **argv)
       {
         fprintf(stderr, "DEBUG: PPD PCLm attribute \"%s\" with value \"%s\"\n",
             attr_name, attr->value);
+        pdf.pclm_strip_height_supported.clear();  // remove default value = 16
         std::vector<std::string> vec = split_strings(attr->value, ",");
         for (size_t i = 0; i < vec.size(); i ++)
           pdf.pclm_strip_height_supported.push_back(atoi(vec[i].c_str()));
