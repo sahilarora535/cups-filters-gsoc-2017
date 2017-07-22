@@ -366,9 +366,7 @@ void convertPdf_InvertColors(struct pdf_info * info)
 }
 
 
-// Supress Flate Compression for testing
-// TODO: Undo supress
-// #define PRE_COMPRESS
+#define PRE_COMPRESS
 
 // Create an '/ICCBased' array and embed a previously 
 // set ICC Profile in the PDF
