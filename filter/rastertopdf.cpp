@@ -238,6 +238,7 @@ struct pdf_info
         color_space(CUPS_CSPACE_K),
         page_width(0),page_height(0),
         pclm_num_strips(0),
+        pclm_strip_height(0),
         pclm_strip_height_preferred(16),  /* default strip height */
         pclm_strip_height_supported(1, 16),
         pclm_compression_method_preferred(0),
@@ -259,6 +260,7 @@ struct pdf_info
     unsigned bpc;
     unsigned                  pclm_num_strips;
     unsigned                  pclm_strip_height_preferred;
+    std::vector<unsigned>     pclm_strip_height;
     std::vector<unsigned>     pclm_strip_height_supported;
     std::vector<std::string>  pclm_compression_method_preferred;
     std::vector<std::string>  pclm_source_resolution_supported;
@@ -789,25 +791,31 @@ void finish_page(struct pdf_info * info)
 
     // draw it
     std::string content;
-    content.append(QUtil::double_to_string(info->page_width) + " 0 0 " + 
-                   QUtil::double_to_string(info->page_height) + " 0 0 cm\n");
-    switch(info->outformat)
+    if (info->outformat == OUTPUT_FORMAT_PDF)
     {
-      case OUTPUT_FORMAT_PDF:
-        content.append("/I Do\n");
-        break;
-      case OUTPUT_FORMAT_PCLM:
-        for (int i = 0; i < info->pclm_num_strips; i ++)
-        {
-          content.append("/P <</MCID 0>> BDC q\n");
-          content.append(QUtil::int_to_string(info->width) + " 0 0 " +
-                         QUtil::int_to_string(info->pclm_strip_height_preferred) +
-                         " 0 0 cm\n");
-          content.append("/Image" + QUtil::int_to_string(i) + " Do Q\n");
-        }
+      content.append(QUtil::double_to_string(info->page_width) + " 0 0 " +
+                     QUtil::double_to_string(info->page_height) + " 0 0 cm\n");
+      content.append("/I Do\n");
+    }
+    else if (info->outformat == OUTPUT_FORMAT_PCLM)
+    {
+      std::string res = info->pclm_source_resolution_default;
+
+      // resolution is in dpi, so remove the last three characters from
+      // resolution string to get resolution integer
+      unsigned resolution_integer = std::stoi(res.substr(0, res.size() - 3));
+      double d = (double)DEFAULT_PDF_UNIT / resolution_integer;
+      content.append(QUtil::double_to_string(d) + " 0 0 " + QUtil::double_to_string(d) + " 0 0 cm\n");
+      unsigned yAnchor = info->height;
+      for (int i = 0; i < info->pclm_num_strips; i ++)
+      {
+        yAnchor -= info->pclm_strip_height[i];
         content.append("/P <</MCID 0>> BDC q\n");
-        break;
-      default:  break;
+        content.append(QUtil::int_to_string(info->width) + " 0 0 " +
+                        QUtil::int_to_string(info->pclm_strip_height[i]) +
+                        " 0 " + QUtil::int_to_string(yAnchor) + " cm\n");
+        content.append("/Image" + QUtil::int_to_string(i) + " Do Q\n");
+      }
     }
 
     info->page.getKey("/Contents").replaceStreamData(content,QPDFObjectHandle::newNull(),QPDFObjectHandle::newNull());
@@ -846,7 +854,14 @@ int prepare_pdf_page(struct pdf_info * info, int width, int height, int bpl,
     {
       info->pclm_num_strips = (height / info->pclm_strip_height_preferred) +
                               (height % info->pclm_strip_height_preferred ? 1 : 0);
+      info->pclm_strip_height.resize(info->pclm_num_strips);
       info->pclm_strip_data.resize(info->pclm_num_strips);
+      for (size_t i = 0; i < info->pclm_num_strips; i ++)
+      {
+        info->pclm_strip_height[i] = info->pclm_strip_height_preferred < height ?
+                                     info->pclm_strip_height_preferred : height;
+        height -= info->pclm_strip_height[i];
+      }
     }
 
     /* Invert grayscale by default */
@@ -978,7 +993,7 @@ int add_pdf_page(struct pdf_info * info, int pagen, unsigned width,
         {
           // reserve space for PCLm strips
           for (size_t i = 0; i < info->pclm_num_strips; i ++)
-            info->pclm_strip_data[i] = PointerHolder<Buffer>(new Buffer(info->line_bytes*info->pclm_strip_height_preferred));
+            info->pclm_strip_data[i] = PointerHolder<Buffer>(new Buffer(info->line_bytes*info->pclm_strip_height[i]));
         }
 
         QPDFObjectHandle page = QPDFObjectHandle::parse(
@@ -1016,8 +1031,7 @@ int close_pdf_file(struct pdf_info * info)
         QPDFWriter output(info->pdf,NULL);
 //        output.setMinimumPDFVersion("1.4");
         if (info->outformat == OUTPUT_FORMAT_PCLM)
-          output.setExtraHeaderText("%PCLm-1.0"); // extra header required for PCLm
-        output.setStreamDataMode(qpdf_s_preserve);  // For debugging
+          output.setPCLm(true);
         output.write();
     } catch (...) {
         return 1;
