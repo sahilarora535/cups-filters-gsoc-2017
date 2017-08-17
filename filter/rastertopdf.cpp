@@ -234,18 +234,19 @@ struct pdf_info
       : pagecount(0),
         width(0),height(0),
         line_bytes(0),
-        bpp(0), bpc(0), render_intent(""),
-        color_space(CUPS_CSPACE_K),
-        page_width(0),page_height(0),
+        bpp(0), bpc(0),
         pclm_num_strips(0),
-        pclm_strip_height(0),
         pclm_strip_height_preferred(16),  /* default strip height */
+        pclm_strip_height(0),
         pclm_strip_height_supported(1, 16),
         pclm_compression_method_preferred(0),
         pclm_source_resolution_supported(0),
         pclm_source_resolution_default(""),
         pclm_raster_back_side(""),
         pclm_strip_data(0),
+        render_intent(""),
+        color_space(CUPS_CSPACE_K),
+        page_width(0),page_height(0),
         outformat(OUTPUT_FORMAT_PDF)
     {
     }
@@ -432,7 +433,8 @@ QPDFObjectHandle embedIccProfile(QPDF &pdf)
 
     // Read profile into memory
     cmsSaveProfileToMem(colorProfile, NULL, &profile_size);
-    unsigned char buff[profile_size];
+    unsigned char *buff =
+        (unsigned char *)calloc(profile_size, sizeof(unsigned char));
     cmsSaveProfileToMem(colorProfile, buff, &profile_size);
 
     // Write ICC profile buffer into PDF
@@ -446,6 +448,7 @@ QPDFObjectHandle embedIccProfile(QPDF &pdf)
     // Return a PDF object reference to an '/ICCBased' array
     ret = pdf.makeIndirectObject(array);
 
+    free(buff);
     fputs("DEBUG: ICC Profile embedded in PDF.\n", stderr); 
 
     return ret;
@@ -816,7 +819,7 @@ void finish_page(struct pdf_info * info)
       double d = (double)DEFAULT_PDF_UNIT / resolution_integer;
       content.append(QUtil::double_to_string(d) + " 0 0 " + QUtil::double_to_string(d) + " 0 0 cm\n");
       unsigned yAnchor = info->height;
-      for (int i = 0; i < info->pclm_num_strips; i ++)
+      for (unsigned i = 0; i < info->pclm_num_strips; i ++)
       {
         yAnchor -= info->pclm_strip_height[i];
         content.append("/P <</MCID 0>> BDC q\n");
@@ -840,8 +843,8 @@ void finish_page(struct pdf_info * info)
 
 
 /* Perform modifications to PDF if color space conversions are needed */      
-int prepare_pdf_page(struct pdf_info * info, int width, int height, int bpl, 
-                     int bpp, int bpc, std::string render_intent, cups_cspace_t color_space)
+int prepare_pdf_page(struct pdf_info * info, unsigned width, unsigned height, unsigned bpl, 
+                     unsigned bpp, unsigned bpc, std::string render_intent, cups_cspace_t color_space)
 {
 #define IMAGE_CMYK_8   (bpp == 32 && bpc == 8)
 #define IMAGE_CMYK_16  (bpp == 64 && bpc == 16)
@@ -1093,7 +1096,7 @@ int convert_raster(cups_raster_t *ras, unsigned width, unsigned height,
     // We should be at raster start
     int i;
     unsigned cur_line = 0;
-    unsigned char *PixelBuffer, *ptr, *buff;
+    unsigned char *PixelBuffer, *ptr = NULL, *buff;
 
     PixelBuffer = (unsigned char *)malloc(bpl);
     buff = (unsigned char *)malloc(info->line_bytes);
@@ -1293,7 +1296,7 @@ int main(int argc, char **argv)
     /* Get PCLm attributes from PPD */
     if (ppd && outformat == OUTPUT_FORMAT_PCLM)
     {
-      char *attr_name = "cupsPclmStripHeightPreferred";
+      char *attr_name = (char *)"cupsPclmStripHeightPreferred";
       if ((attr = ppdFindAttr(ppd, attr_name, NULL)) != NULL)
       {
         fprintf(stderr, "DEBUG: PPD PCLm attribute \"%s\" with value \"%s\"\n",
@@ -1303,7 +1306,7 @@ int main(int argc, char **argv)
       else
         pdf.pclm_strip_height_preferred = 16; /* default strip height */
 
-      attr_name = "cupsPclmStripHeightSupported";
+      attr_name = (char *)"cupsPclmStripHeightSupported";
       if ((attr = ppdFindAttr(ppd, attr_name, NULL)) != NULL)
       {
         fprintf(stderr, "DEBUG: PPD PCLm attribute \"%s\" with value \"%s\"\n",
@@ -1315,7 +1318,7 @@ int main(int argc, char **argv)
         vec.clear();
       }
 
-      attr_name = "cupsPclmRasterBackSide";
+      attr_name = (char *)"cupsPclmRasterBackSide";
       if ((attr = ppdFindAttr(ppd, attr_name, NULL)) != NULL)
       {
         fprintf(stderr, "DEBUG: PPD PCLm attribute \"%s\" with value \"%s\"\n",
@@ -1323,7 +1326,7 @@ int main(int argc, char **argv)
         pdf.pclm_raster_back_side = attr->value;
       }
 
-      attr_name = "cupsPclmSourceResolutionDefault";
+      attr_name = (char *)"cupsPclmSourceResolutionDefault";
       if ((attr = ppdFindAttr(ppd, attr_name, NULL)) != NULL)
       {
         fprintf(stderr, "DEBUG: PPD PCLm attribute \"%s\" with value \"%s\"\n",
@@ -1331,7 +1334,7 @@ int main(int argc, char **argv)
         pdf.pclm_source_resolution_default = attr->value;
       }
 
-      attr_name = "cupsPclmSourceResolutionSupported";
+      attr_name = (char *)"cupsPclmSourceResolutionSupported";
       if ((attr = ppdFindAttr(ppd, attr_name, NULL)) != NULL)
       {
         fprintf(stderr, "DEBUG: PPD PCLm attribute \"%s\" with value \"%s\"\n",
@@ -1339,7 +1342,7 @@ int main(int argc, char **argv)
         pdf.pclm_source_resolution_supported = split_strings(attr->value, ",");
       }
 
-      attr_name = "cupsPclmCompressionMethodPreferred";
+      attr_name = (char *)"cupsPclmCompressionMethodPreferred";
       if ((attr = ppdFindAttr(ppd, attr_name, NULL)) != NULL)
       {
         fprintf(stderr, "DEBUG: PPD PCLm attribute \"%s\" with value \"%s\"\n",
