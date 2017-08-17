@@ -285,7 +285,7 @@ int create_pdf_file(struct pdf_info * info, const OutFormatType & outformat)
     return 0;
 }
 
-QPDFObjectHandle makeBox(double x1, double y1, double x2, double y2)
+QPDFObjectHandle makeRealBox(double x1, double y1, double x2, double y2)
 {
     QPDFObjectHandle ret=QPDFObjectHandle::newArray();
     ret.appendItem(QPDFObjectHandle::newReal(x1));
@@ -295,6 +295,15 @@ QPDFObjectHandle makeBox(double x1, double y1, double x2, double y2)
     return ret;
 }
 
+QPDFObjectHandle makeIntegerBox(int x1, int y1, int x2, int y2)
+{
+    QPDFObjectHandle ret = QPDFObjectHandle::newArray();
+    ret.appendItem(QPDFObjectHandle::newInteger(x1));
+    ret.appendItem(QPDFObjectHandle::newInteger(y1));
+    ret.appendItem(QPDFObjectHandle::newInteger(x2));
+    ret.appendItem(QPDFObjectHandle::newInteger(y2));
+    return ret;
+}
 
 
 
@@ -818,7 +827,11 @@ void finish_page(struct pdf_info * info)
       }
     }
 
-    info->page.getKey("/Contents").replaceStreamData(content,QPDFObjectHandle::newNull(),QPDFObjectHandle::newNull());
+    QPDFObjectHandle page_contents = info->page.getKey("/Contents");
+    if (info->outformat == OUTPUT_FORMAT_PDF)
+      page_contents.replaceStreamData(content, QPDFObjectHandle::newNull(), QPDFObjectHandle::newNull());
+    else if (info->outformat == OUTPUT_FORMAT_PCLM)
+      page_contents.getArrayItem(0).replaceStreamData(content, QPDFObjectHandle::newNull(), QPDFObjectHandle::newNull());
 
     // bookkeeping
     info->page_data = PointerHolder<Buffer>();
@@ -1005,12 +1018,21 @@ int add_pdf_page(struct pdf_info * info, int pagen, unsigned width,
             "  /MediaBox null "
             "  /Contents null "
             ">>");
-        page.replaceKey("/Contents",QPDFObjectHandle::newStream(&info->pdf)); // data will be provided later
-    
+
         // Convert to pdf units
         info->page_width=((double)info->width/xdpi)*DEFAULT_PDF_UNIT;
         info->page_height=((double)info->height/ydpi)*DEFAULT_PDF_UNIT;
-        page.replaceKey("/MediaBox",makeBox(0,0,info->page_width,info->page_height));
+        if (info->outformat == OUTPUT_FORMAT_PDF)
+        {
+          page.replaceKey("/Contents",QPDFObjectHandle::newStream(&info->pdf)); // data will be provided later
+          page.replaceKey("/MediaBox",makeRealBox(0,0,info->page_width,info->page_height));
+        }
+        else if (info->outformat == OUTPUT_FORMAT_PCLM)
+        {
+          page.replaceKey("/Contents",
+            QPDFObjectHandle::newArray(std::vector<QPDFObjectHandle>(1, QPDFObjectHandle::newStream(&info->pdf))));
+          page.replaceKey("/MediaBox",makeIntegerBox(0,0,info->page_width,info->page_height));
+        }
     
         info->page = info->pdf.makeIndirectObject(page); // we want to keep a reference
         info->pdf.addPage(info->page, false);
