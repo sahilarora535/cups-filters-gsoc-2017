@@ -1,14 +1,164 @@
-NEWS - OpenPrinting CUPS Filters v1.14.0 - 2017-05-15
+NEWS - OpenPrinting CUPS Filters v1.16.2 - 2017-08-18
 -----------------------------------------------------
+
+CHANGES IN V1.16.2
+
+	- README: Minimum CUPS requirement of cups-filters is CUPS
+	  1.4.x.  It does not build with earlier CUPS versions (Bug
+	  #993).
+	- driverless, foomatic-rip: Create relative symbolic links.
+	- All C/C++ files: Silenced all compiler warnings, at least
+	  the ones appearing when building on Ubuntu Linux 17.10 with
+	  GCC 7.1.0.
+	- README: Updated the introduction section to reflect the
+	  current functionality of cups-filters, and the build
+	  requirements for the Poppler-based filters (C++11: Bug
+	  #1404, Build configuration of Poppler: Bug #1257). Thanks to
+	  Roland Hieber (r dot hieber at pengutronix dot de) to find
+	  out about this.
+	- pdftoopvp, bannertopdf, pdftoraster: Build with C++11
+	  standard as some features of this standard are needed by
+	  these filters (or by Poppler). Thanks to Roland Hieber (r
+	  dot hieber at pengutronix dot de) for the patch (Bug #1404).
+
+CHANGES IN V1.16.1
+
+	- cups-browsed: Make timeouts for HTTP access to the local
+	  CUPS daemon and remote IPP printers configurable. Thanks to
+	  Cedric Dufour (cedric dot dufour at idiap dot ch) for the
+	  patch (Bug #1387, Debian bug #852436).
+	- texttopdf: Allow bold and underline formatting to be used
+	  together when using "prettyprint". Thanks to Michael Moran
+	  (vampm at comcast dot net) for the patch.
+	- texttopdf: Allow to alter margins, and chars/lines per Inch
+	  when using "prettyprint". Thanks to Michael Moran (vampm at
+	  comcast dot net) for the patch.
+	- texttopdf: When "prettyprint" is used, do not drop out of
+	  C/shell comment mode too early. Thanks to Michael Moran
+	  (vampm at comcast dot net) for the patch.
+	- cups-browsed: Additional NULL checks for description and
+          location.
+	- cups-browsed: Fixed crash which happens when using
+	  BrowsePoll (Debian bug #723835).
+
+CHANGES IN V1.16.0
+
+	- cups-browsed: Let elements in arrays get stacked up in the
+	  order they are added, before, they were in the order how
+	  they are positioned in memory. This especially led to a
+	  random order of printer cluster definitions and of
+	  command-line-supplied configuration options.
+	- cups-browsed: On shutdown not all locally created queues got
+          deleted.
+	- cups-browsed: Added support for manual definition of
+	  load-balancing printer clusters via the "Cluster" directive
+	  in cups-browsed.conf.
+
+CHANGES IN V1.15.0
+
+	- cups-browsed: Removed the function to compare printer entries
+	  for sorting the printer entry list. This led to corruption
+	  of the list and so to crashes.
+	- cups-browsed: Fixed crashes when many printers (especially
+	  all printers of a load-balanced cluster) are removed at once.
+	- cups-browsed: Log the full list of handled remote printers
+	  whenever one is added or removed.
+	- cups-browsed: Renamed the handle_cups_queues() function to
+	  update_cups_queues() to better reflect what it is doing.
+	- cups-browsed: When clustering remote CUPS printers together
+	  do not call them duplicates but slaves asigned to a master.
+	- cups-browsed: Log the error if the network interface name of
+	  a DNS-SD event could not be determined.
+	- cups-browsed: Simplified printer entry removal procedure.
+	- cups-browsed: Log memeber printer list of a printer cluster
+	  (implicit class) when a member printer is added or removed.
+	- cups-browsed: Removed superfluous (and not correctly
+          working) duplicate counter from the remote printer entry
+          data structure.
+	- cups-browsed: Add "AutoClustering" directive to
+	  cups-browsed.conf to turn on and off automatically
+	  clustering equally named local print queues which point to
+	  remote CUPS printers. When automatic clustering is turned
+	  off, queue name clashes are prevented by adding "@<server
+	  name>" to local queue names based on the remote queue name
+	  or on make and model.
+	- cups-browsed: Skip callback functions and the CUPS queue
+	  creation/update/removal loop when cups-browsed is terminated
+	  by a SIGTERM signal. This avoids hanging on shutdown. Thanks
+	  to Edgar Fuss (ef at math dot uni-bonn dot de, Bug #1402).
+	- libcupsfilters: Added some fallbacks for incorrect
+	  resolution IPP attributes on IPP network printers (Debian
+	  bug #868360).
+	- pdftoopvp: Added missing "#include <math.h>" needed for
+	  cross-compiling for arm-v7a-linux-gnueabi (Bug #1232).
+	- cups-browsed: Prevent the creation of two remote printer
+	  entries for two IPP network printers or an IPP network
+	  printer and a remote CUPS printer with the same local queue
+	  name. This could easily happen with make/model-based naming.
+	- cups-browsed: Added the possibility to optionally not
+	  create local queues for remote printers for which CUPS
+	  (from 2.2.x on) auto-creates queues by itself (DNS-SD
+	  advertised driverless printers).
+	- cups-browsed: Removed repeated code for clean-up when
+	  generate_local_queue() function fails.
+	- cups-browsed: Take care of CUPS' temporary queues. Do not
+	  consider them when checking whether a queue with the same
+	  name as the one we are creating already exists and make
+	  temporary queues permanent (or remove them) before
+	  overwriting them with our local queue.
+	- cups-browsed: Make the naming scheme for locally created
+	  print queue configurable, especially allow for naming based
+	  on the DNS-SD service name (now default) as this is the same
+	  scheme as CUPS uses for its temporary queues. This way we
+	  prevent CUPS creating temporary queues when cups-browsed is
+	  already creating a queue.
+	- cups-browsed: Do not add "APRemoteQueueID" keyword to the
+	  local queue's PPD file if the queue is for an IPP network
+	  printer.
+	- cups-browsed: Skip multiple browse entries for the same
+	  printer with interface alias addresses.  Thanks to Edgar
+	  Fuss (ef at math dot uni-bonn dot de, Bug #1399).
+	- cups-browsed: Improved support for Description (Info) and
+	  Location fields of remote CUPS queues. Thanks to Edgar Fuss
+	  (ef at math dot uni-bonn dot de, Bug #1398).
+	- cups-browsed: Renamed variable names for better code
+	  readability.  Thanks to Edgar Fuss (ef at math dot uni-bonn
+	  dot de, Bug #1398).
+	- cups-browsed: Additional NULL checks in the
+	  create_local_queue() function. Thanks to Edgar Fuss (ef at
+	  math dot uni-bonn dot de, Bug #1398).
 
 CHANGES IN V1.14.1
 
-	- cups-browsed: Let the handle_cups_queues() function
-	  immediately break out of the loop when it has removed a
-	  printer entry, so that no non-existing entries are read and
-	  no reading beyond the end of the array happens.
-	  handle_cups_queues() gets immediately called again if it did
-	  not complete the processing due to this.
+	- cups-browsed: Do correct removal of printer entry handling
+	  duplicates correctly also when a legacy CUPS-broadcasted
+	  printer disappears or a printer remaining from the last
+	  session does not appear again.
+	- cups-browsed: Use getline() instead of fgets() to read saved
+	  option settings. This is less crash-prone (Ubuntu bug
+	  #1658833).
+	- cups-browsed: Improved error logging when saving option
+          settings.
+	- cups-browsed: Added NULL checks for generate_local_queue()
+	  and create_local_queue() functions.
+	- cups-browsed: When accessing local CUPS queues use always
+	  the correct port of the CUPS daemon we are attached to.
+	- cups-browsed: Check whether a connection to the local CUPS
+	  daemon actually happened before using it (Ubuntu bug
+	  #1644049).
+	- cups-browsed: Set unused fields of printer record to NULL
+	  when tranfering data from the record of a duplicate printer
+	  to the record of a disappeared one.
+	- cups-browsed: Simplify removal of all queues on shutdown or
+	  stop of Avahi.
+	- cups-browsed: When creating a record for a discovered
+	  printer set it all zero before filling it in, to assure
+	  that no field is in an undefined state.
+	- cups-browsed: All functions which are called via Glib
+	  functions or otherwise event-triggered log now in which
+	  thread they are running. This way one can see whether
+	  problems can be caused by concurrent access to global
+	  resources.
 	- cups-browsed: Do not check whether the DNS-SD event is from
 	  the local machine in the browse_callback() function. We
 	  cannot check the port here.

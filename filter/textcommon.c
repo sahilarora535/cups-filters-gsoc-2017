@@ -493,8 +493,10 @@ TextMain(const char *name,	/* I - Name of filter */
   char		keyword[64],	/* Keyword string */
 		*keyptr;	/* Pointer into string */
   int		keycol;		/* Column where keyword starts */
-  int		ccomment;	/* Inside a C-style comment? */
-  int		cstring;	/* Inside a C string */
+  enum	{NLstyl=-1, NoCmnt, SNTXstyl}
+  		cmntState;	/* Inside a comment */
+  enum	{StrBeg=-1, NoStr, StrEnd}	
+  		strState;	/* Inside a dbl-quoted string */
 
 
  /*
@@ -540,8 +542,6 @@ TextMain(const char *name,	/* I - Name of filter */
 
   options     = NULL;
   num_options = cupsParseOptions(argv[5], 0, &options);
-
-  ppd = SetCommonOptions(num_options, options, 1);
 
   if ((val = cupsGetOption("prettyprint", num_options, options)) != NULL &&
       strcasecmp(val, "no") && strcasecmp(val, "off") &&
@@ -591,6 +591,8 @@ TextMain(const char *name,	/* I - Name of filter */
       Keywords    = NULL;
     }
   }
+
+  ppd = SetCommonOptions(num_options, options, 1);
 
   if ((val = cupsGetOption("wrap", num_options, options)) == NULL)
     WrapLines = 1;
@@ -695,8 +697,8 @@ TextMain(const char *name,	/* I - Name of filter */
   attr         = 0;
   keyptr       = keyword;
   keycol       = 0;
-  ccomment     = 0;
-  cstring      = 0;
+  cmntState     = NoCmnt;
+  strState      = NoStr;
 
   while ((ch = getutf8(fp)) >= 0)
   {
@@ -823,7 +825,10 @@ TextMain(const char *name,	/* I - Name of filter */
           column = 0;
 	  keycol = 0;
 
-          if (!ccomment && !cstring)
+	  if (cmntState == NLstyl)
+	  	cmntState = NoCmnt;
+
+          if (!cmntState && !strState)
 	    attr &= ~(ATTR_ITALIC | ATTR_BOLD | ATTR_RED | ATTR_GREEN | ATTR_BLUE);
 
           if (line >= SizeLines)
@@ -846,7 +851,10 @@ TextMain(const char *name,	/* I - Name of filter */
           keyptr = keyword;
 	  keycol = column;
 
-          if (!ccomment && !cstring)
+	  if (cmntState == NLstyl)
+	  	cmntState = NoCmnt;
+
+          if (!cmntState && !strState)
 	    attr &= ~(ATTR_ITALIC | ATTR_BOLD | ATTR_RED | ATTR_GREEN | ATTR_BLUE);
           break;
 
@@ -878,7 +886,10 @@ TextMain(const char *name,	/* I - Name of filter */
 	  keycol = 0;
           line   = 0;
 
-          if (!ccomment && !cstring)
+	  if (cmntState == NLstyl)
+	  	cmntState = NoCmnt;
+
+          if (!cmntState && !strState)
 	    attr &= ~(ATTR_ITALIC | ATTR_BOLD | ATTR_RED | ATTR_GREEN | ATTR_BLUE);
 
           if (page_column >= PageColumns)
@@ -961,8 +972,7 @@ TextMain(const char *name,	/* I - Name of filter */
 	      *keyptr = '\0';
 	      keyptr  = keyword;
 
-	      if (!(attr & ATTR_ITALIC) &&
-	          bsearch(&keyptr, Keywords, NumKeywords, sizeof(char *),
+	      if (bsearch(&keyptr, Keywords, NumKeywords, sizeof(char *),
 	                  compare_keywords))
               {
 	       /*
@@ -978,62 +988,71 @@ TextMain(const char *name,	/* I - Name of filter */
 		}
 	      }
 	    }
-	    else if ((isalnum(ch & 255) || ch == '_') && !ccomment && !cstring)
+
+	   /*
+	    * Look for Syntax-transition Starts...
+	    */
+	    if (!cmntState && !strState)
 	    {
-	     /*
-	      * Add characters to the current keyword (if they'll fit).
-	      */
+	      if ((isalnum(ch & 255) || ch == '_'))
+	      {
+	       /*
+	        * Add characters to the current keyword (if they'll fit).
+	        */
 
-              if (keyptr == keyword)
-	        keycol = column;
+	        if (keyptr == keyword)
+	          keycol = column;
 
-	      if (keyptr < (keyword + sizeof(keyword) - 1))
-	        *keyptr++ = ch;
-            }
-	    else if (ch == '\"' && lastch != '\\' && !ccomment && !cstring)
-	    {
-	     /*
-	      * Start a C string constant...
-	      */
+	        if (keyptr < (keyword + sizeof(keyword) - 1))
+	          *keyptr++ = ch;
+	      }
+	      else if (ch == '\"' && lastch != '\\')
+	      {
+	       /*
+	        * Start a dbl-quote string constant...
+	        */
 
-	      cstring = -1;
-              attr    = ATTR_BLUE;
-	    }
-            else if (ch == '*' && lastch == '/' && !cstring &&
-	             PrettyPrint != PRETTY_SHELL)
-	    {
-	     /*
-	      * Start a C-style comment...
-	      */
+	        strState = StrBeg;
+		attr    = ATTR_BLUE;
+	      }
+	      else if (ch == '*' && lastch == '/' &&
+	               PrettyPrint != PRETTY_SHELL)
+	      {
+	       /*
+	        * Start a C-style comment...
+	        */
 
-	      ccomment = 1;
-	      attr     = ATTR_ITALIC | ATTR_GREEN;
-	    }
-	    else if (ch == '/' && lastch == '/' && !cstring &&
-	             PrettyPrint == PRETTY_CODE)
-	    {
-	     /*
-	      * Start a C++-style comment...
-	      */
+	        cmntState = SNTXstyl;
+	        attr     = ATTR_ITALIC | ATTR_GREEN;
+	      }
+	      else if (ch == '/' && lastch == '/' &&
+	               PrettyPrint == PRETTY_CODE)
+	      {
+	       /*
+	        * Start a C++-style comment...
+	        */
 
-	      attr = ATTR_ITALIC | ATTR_GREEN;
-	    }
-	    else if (ch == '#' && !cstring && PrettyPrint != PRETTY_CODE)
-	    {
-	     /*
-	      * Start a shell-style comment...
-	      */
+	        cmntState = NLstyl;
+	        attr = ATTR_ITALIC | ATTR_GREEN;
+	      }
+	      else if (ch == '#' && PrettyPrint != PRETTY_CODE)
+	      {
+	       /*
+	        * Start a shell-style comment...
+	        */
 
-	      attr = ATTR_ITALIC | ATTR_GREEN;
-	    }
-	    else if (ch == '#' && column == 0 && !ccomment && !cstring &&
-	             PrettyPrint == PRETTY_CODE)
-	    {
-	     /*
-	      * Start a preprocessor command...
-	      */
+	        cmntState = NLstyl;
+	        attr = ATTR_ITALIC | ATTR_GREEN;
+	      }
+	      else if (ch == '#' && column == 0 &&
+	               PrettyPrint == PRETTY_CODE)
+	      {
+	       /*
+	        * Start a preprocessor command...
+	        */
 
-	      attr = ATTR_BOLD | ATTR_RED;
+	        attr = ATTR_BOLD | ATTR_RED;
+	      }
 	    }
           }
 
@@ -1065,7 +1084,8 @@ TextMain(const char *name,	/* I - Name of filter */
 
             if (PrettyPrint)
               Page[line][i].attr = attr;
-	    else if (ch == ' ' && Page[line][i].ch)
+
+	    if (ch == ' ' && Page[line][i].ch)
 	      ch = Page[line][i].ch;
             else if (ch == Page[line][i].ch)
               Page[line][i].attr |= ATTR_BOLD;
@@ -1086,7 +1106,7 @@ TextMain(const char *name,	/* I - Name of filter */
 
           if (PrettyPrint)
 	  {
-	    if ((ch == '{' || ch == '}') && !ccomment && !cstring &&
+	    if ((ch == '{' || ch == '}') && !cmntState && !strState &&
 	        column < ColumnWidth)
 	    {
 	     /*
@@ -1104,27 +1124,27 @@ TextMain(const char *name,	/* I - Name of filter */
 
 	      Page[line][column - 1].attr = attr;
 	    }
-	    else if (ch == '\"' && lastch != '\\' && !ccomment && cstring > 0)
+	    else if (ch == '\"' && lastch != '\\' && !cmntState && strState == StrEnd)
 	    {
 	     /*
-	      * End a C string constant...
+	      * End a dbl-quote string constant...
 	      */
 
-	      cstring = 0;
+	      strState = NoStr;
 	      attr    &= ~ATTR_BLUE;
             }
-	    else if (ch == '/' && lastch == '*' && ccomment)
+	    else if (ch == '/' && lastch == '*' && cmntState)
 	    {
 	     /*
 	      * End a C-style comment...
 	      */
 
-	      ccomment = 0;
+	      cmntState = NoCmnt;
 	      attr     &= ~(ATTR_ITALIC | ATTR_GREEN);
 	    }
 
-            if (cstring < 0)
-	      cstring = 1;
+            if (strState == StrBeg)
+	      strState = StrEnd;
 	  }
 
           column ++;

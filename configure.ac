@@ -6,8 +6,8 @@ AC_PREREQ([2.65])
 # Version informations
 # ====================
 m4_define([cups_filters_version_major],[1])
-m4_define([cups_filters_version_minor],[14])
-m4_define([cups_filters_version_micro],[0])
+m4_define([cups_filters_version_minor],[16])
+m4_define([cups_filters_version_micro],[2])
 m4_define([cups_filters_version],[cups_filters_version_major.cups_filters_version_minor.cups_filters_version_micro])
 
 # =============
@@ -52,6 +52,7 @@ AH_BOTTOM([
 # ===========================
 AC_PROG_CC
 AC_PROG_CXX
+AX_CXX_COMPILE_STDCXX([11],[noext],[mandatory])
 AM_PROG_CC_C_O
 AC_PROG_CPP
 AC_PROG_INSTALL

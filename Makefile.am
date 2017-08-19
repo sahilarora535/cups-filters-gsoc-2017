@@ -404,7 +404,7 @@ libfontembed_la_SOURCES = \
 	fontembed/sfnt_subset.c
 libfontembed_la_LDFLAGS = \
 	-no-undefined \
-	-version-info 1
+	-version-info 2
 
 ttfread_SOURCES = fontembed/main.c
 ttfread_LDADD = libfontembed.la
@@ -986,11 +986,11 @@ install-exec-hook:
 	$(INSTALL) -d -m 755 $(DESTDIR)$(pkgfilterdir)
 	$(INSTALL) -d -m 755 $(DESTDIR)$(pkgbackenddir)
 if ENABLE_FOOMATIC
-	$(LN_S) -f $(pkgfilterdir)/foomatic-rip $(DESTDIR)$(bindir)
+	$(LN_S) -r -f $(DESTDIR)$(pkgfilterdir)/foomatic-rip $(DESTDIR)$(bindir)
 endif
 if ENABLE_DRIVERLESS
-	$(LN_S) -f $(pkgppdgendir)/driverless $(DESTDIR)$(bindir)
-	$(LN_S) -f $(pkgppdgendir)/driverless $(DESTDIR)$(pkgbackenddir)
+	$(LN_S) -r -f $(DESTDIR)$(pkgppdgendir)/driverless $(DESTDIR)$(bindir)
+	$(LN_S) -r -f $(DESTDIR)$(pkgppdgendir)/driverless $(DESTDIR)$(pkgbackenddir)
 endif
 if ENABLE_BRAILLE
 	$(LN_S) -f imagetobrf $(DESTDIR)$(pkgfilterdir)/imagetoubrl
