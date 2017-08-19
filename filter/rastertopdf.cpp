@@ -45,6 +45,8 @@
 
 #include <qpdf/Pl_Flate.hh>
 #include <qpdf/Pl_Buffer.hh>
+#include <qpdf/Pl_RunLength.hh>
+#include <qpdf/Pl_DCT.hh>
 
 #ifdef USE_LCMS1
 #include <lcms.h>
@@ -92,6 +94,13 @@ typedef enum {
   OUTPUT_FORMAT_PDF,
   OUTPUT_FORMAT_PCLM
 } OutFormatType;
+
+// Compression method for providing data to PCLm Streams.
+typedef enum {
+  DCT_DECODE = 0,
+  RLE_DECODE,
+  FLATE_DECODE
+} CompressionMethod;
 
 // Color conversion function
 typedef unsigned char *(*convertFunction)(unsigned char *src,
@@ -295,7 +304,7 @@ struct pdf_info
     unsigned                  pclm_strip_height_preferred;
     std::vector<unsigned>     pclm_strip_height;
     std::vector<unsigned>     pclm_strip_height_supported;
-    std::vector<std::string>  pclm_compression_method_preferred;
+    std::vector<CompressionMethod> pclm_compression_method_preferred;
     std::vector<std::string>  pclm_source_resolution_supported;
     std::string               pclm_source_resolution_default;
     std::string               pclm_raster_back_side;
@@ -602,6 +611,7 @@ QPDFObjectHandle getCalGrayArray(double wp[3], double gamma[1], double bp[3])
 std::vector<QPDFObjectHandle>
 makePclmStrips(QPDF &pdf, unsigned num_strips,
                std::vector< PointerHolder<Buffer> > &strip_data,
+               std::vector<CompressionMethod> &compression_methods,
                unsigned width, unsigned height, cups_cspace_t cs, unsigned bpc)
 {
     std::vector<QPDFObjectHandle> ret(num_strips);
@@ -617,36 +627,74 @@ makePclmStrips(QPDF &pdf, unsigned num_strips,
     dict["/Height"]=QPDFObjectHandle::newInteger(height);
     dict["/BitsPerComponent"]=QPDFObjectHandle::newInteger(bpc);
 
+    J_COLOR_SPACE color_space;
+    unsigned components;
     /* Write "/ColorSpace" dictionary based on raster input */
     switch(cs) {
       case CUPS_CSPACE_K:
       case CUPS_CSPACE_SW:
         dict["/ColorSpace"]=QPDFObjectHandle::newName("/DeviceGray");
+        color_space = JCS_GRAYSCALE;
+        components = 1;
         break;
       case CUPS_CSPACE_RGB:
       case CUPS_CSPACE_SRGB:
       case CUPS_CSPACE_ADOBERGB:
         dict["/ColorSpace"]=QPDFObjectHandle::newName("/DeviceRGB");
+        color_space = JCS_RGB;
+        components = 3;
         break;
       default:
         fputs("DEBUG: Color space not supported.\n", stderr); 
         return std::vector<QPDFObjectHandle>(num_strips, QPDFObjectHandle());
     }
 
+    // We deliver already compressed content (instead of letting QPDFWriter do it)
+    // to avoid using excessive memory. For that we first get preferred compression
+    // method to pre-compress content for strip streams.
+
+    // Use the compression method with highest priority of the available methods
+    // __________________
+    // Priority | Method
+    // ------------------
+    // 0        | DCT
+    // 1        | RLE
+    // 2        | FLATE
+    // ------------------
+    CompressionMethod compression = compression_methods.front();
+    for (std::vector<CompressionMethod>::iterator it = compression_methods.begin();
+         it != compression_methods.end(); ++it)
+      compression = compression > *it ? compression : *it;
+
+    // write compressed stream data
     for (size_t i = 0; i < num_strips; i ++)
     {
       ret[i].replaceDict(QPDFObjectHandle::newDictionary(dict));
-#ifdef PRE_COMPRESS
-      // we deliver already compressed content (instead of letting QPDFWriter do it), to avoid using excessive memory
       Pl_Buffer psink("psink");
-      Pl_Flate pflate("pflate",&psink,Pl_Flate::a_deflate);
-      pflate.write(strip_data[i]->getBuffer(),strip_data[i]->getSize());
-      pflate.finish();
-      ret[i].replaceStreamData(PointerHolder<Buffer>(psink.getBuffer()),
-                            QPDFObjectHandle::newName("/FlateDecode"),QPDFObjectHandle::newNull());
-#else
-      ret[i].replaceStreamData(strip_data[i], QPDFObjectHandle::newNull(), QPDFObjectHandle::newNull());
-#endif
+      if (compression == FLATE_DECODE)
+      {
+        Pl_Flate pflate("pflate", &psink, Pl_Flate::a_deflate);
+        pflate.write(strip_data[i]->getBuffer(), strip_data[i]->getSize());
+        pflate.finish();
+        ret[i].replaceStreamData(PointerHolder<Buffer>(psink.getBuffer()),
+                              QPDFObjectHandle::newName("/FlateDecode"),QPDFObjectHandle::newNull());
+      }
+      else if (compression == RLE_DECODE)
+      {
+        Pl_RunLength prle("prle", &psink, Pl_RunLength::a_encode);
+        prle.write(strip_data[i]->getBuffer(),strip_data[i]->getSize());
+        prle.finish();
+        ret[i].replaceStreamData(PointerHolder<Buffer>(psink.getBuffer()),
+                              QPDFObjectHandle::newName("/RunLengthDecode"),QPDFObjectHandle::newNull());
+      }
+      else if (compression == DCT_DECODE)
+      {
+        Pl_DCT pdct("pdct", &psink, width, height, components, color_space);
+        pdct.write(strip_data[i]->getBuffer(),strip_data[i]->getSize());
+        pdct.finish();
+        ret[i].replaceStreamData(PointerHolder<Buffer>(psink.getBuffer()),
+                              QPDFObjectHandle::newName("/DCTDecode"),QPDFObjectHandle::newNull());
+      }
     }
     return ret;
 }
@@ -824,7 +872,7 @@ void finish_page(struct pdf_info * info)
         if(!info->pclm_strip_data[i].getPointer())
           return;
 
-      std::vector<QPDFObjectHandle> strips = makePclmStrips(info->pdf, info->pclm_num_strips, info->pclm_strip_data, info->width, info->pclm_strip_height_preferred, info->color_space, info->bpc);
+      std::vector<QPDFObjectHandle> strips = makePclmStrips(info->pdf, info->pclm_num_strips, info->pclm_strip_data, info->pclm_compression_method_preferred, info->width, info->pclm_strip_height_preferred, info->color_space, info->bpc);
       for (size_t i = 0; i < info->pclm_num_strips; i ++)
         if(!strips[i].isInitialized()) die("Unable to load strip data");
 
@@ -1386,7 +1434,30 @@ int main(int argc, char **argv)
       {
         fprintf(stderr, "DEBUG: PPD PCLm attribute \"%s\" with value \"%s\"\n",
             attr_name, attr->value);
-        pdf.pclm_compression_method_preferred = split_strings(attr->value, ",");
+        std::vector<std::string> vec = split_strings(attr->value, ",");
+
+        // get all compression methods supported by the printer
+        for (std::vector<std::string>::iterator it = vec.begin();
+             it != vec.end(); ++it)
+        {
+          std::string compression_method = *it;
+          for (char& x: compression_method)
+            x = tolower(x);
+          if (compression_method == "flate")
+            pdf.pclm_compression_method_preferred.push_back(FLATE_DECODE);
+          else if (compression_method == "rle")
+            pdf.pclm_compression_method_preferred.push_back(RLE_DECODE);
+          else if (compression_method == "jpeg")
+            pdf.pclm_compression_method_preferred.push_back(DCT_DECODE);
+        }
+
+      }
+      // If the compression methods is none of the above or is erreneous
+      // use FLATE as compression method and show a warning.
+      if (pdf.pclm_compression_method_preferred.empty())
+      {
+        fprintf(stderr, "WARNING: (rastertopclm) Unable parse PPD attribute \"%s\". Using FLATE for encoding image streams.\n", attr_name);
+        pdf.pclm_compression_method_preferred.push_back(FLATE_DECODE);
       }
     }
 
