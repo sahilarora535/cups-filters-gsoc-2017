@@ -12,11 +12,12 @@
  *  You should have received a copy of the GNU General Public License
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
- * @brief Convert PWG Raster to a PDF file
+ * @brief Convert PWG Raster to a PDF/PCLm file
  * @file rastertopdf.cpp
  * @author Neil 'Superna' Armstrong <superna9999@gmail.com> (C) 2010
  * @author Tobias Hoffmann <smilingthax@gmail.com> (c) 2012
  * @author Till Kamppeter <till.kamppeter@gmail.com> (c) 2014
+ * @author Sahil Arora <sahilarora.535@gmail.com> (c) 2017
  */
 
 #include <config.h>

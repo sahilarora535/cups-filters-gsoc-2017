@@ -2,6 +2,7 @@
  *   IPP Everywhere/Apple Raster/IPP legacy PPD generator
  *
  *   Copyright 2016 by Till Kamppeter.
+ *   Copyright 2017 by Sahil Arora.
  *
  *   The PPD generator is based on the PPD generator for the CUPS
  *   "lpadmin -m everywhere" functionality in the cups/ppd-cache.c
