@@ -1069,7 +1069,9 @@ int add_pdf_page(struct pdf_info * info, int pagen, unsigned width,
         {
           page.replaceKey("/Contents",
             QPDFObjectHandle::newArray(std::vector<QPDFObjectHandle>(1, QPDFObjectHandle::newStream(&info->pdf))));
-          page.replaceKey("/MediaBox",makeIntegerBox(0,0,info->page_width,info->page_height));
+
+          // box with dimensions rounded off to the nearest integer
+          page.replaceKey("/MediaBox",makeIntegerBox(0,0,info->page_width + 0.5,info->page_height + 0.5));
         }
     
         info->page = info->pdf.makeIndirectObject(page); // we want to keep a reference
