@@ -218,7 +218,36 @@ split_strings(std::string const &str, std::string delimiters = ",")
   return vec;
 }
 
+/**
+ * 'num_digits()' - Calculates the number of digits in an integer
+ * O - number of digits in the input integer
+ * I - the integer whose digits needs to be calculated
+ */
+int num_digits(int n)
+{
+  if (n == 0) return 1;
+  int digits = 0;
+  while (n)
+  {
+    ++digits;
+    n /= 10;
+  }
+  return digits;
+}
 
+/**
+ * 'int_to_fwstring()' - Convert a number to fixed width string by padding with zeroes
+ * O - converted string
+ * I - the integee which needs to be converted to string
+ * I - width of string required
+ */
+std::string int_to_fwstring(int n, int width)
+{
+  int num_zeroes = width - num_digits(n);
+  if (num_zeroes < 0)
+    num_zeroes = 0;
+  return std::string(num_zeroes, '0') + QUtil::int_to_string(n);
+}
 
 void die(const char * str)
 {
@@ -799,7 +828,10 @@ void finish_page(struct pdf_info * info)
 
       // add it
       for (size_t i = 0; i < info->pclm_num_strips; i ++)
-        info->page.getKey("/Resources").getKey("/XObject").replaceKey("/Image" + QUtil::int_to_string(i),strips[i]);
+        info->page.getKey("/Resources").getKey("/XObject")
+                  .replaceKey("/Image" +
+                              int_to_fwstring(i,num_digits(info->pclm_num_strips - 1)),
+                              strips[i]);
     }
 
     // draw it
@@ -827,7 +859,9 @@ void finish_page(struct pdf_info * info)
         content.append(QUtil::int_to_string(info->width) + " 0 0 " +
                         QUtil::int_to_string(info->pclm_strip_height[i]) +
                         " 0 " + QUtil::int_to_string(yAnchor) + " cm\n");
-        content.append("/Image" + QUtil::int_to_string(i) + " Do Q\n");
+        content.append("/Image" +
+                       int_to_fwstring(i, num_digits(info->pclm_num_strips - 1)) +
+                       " Do Q\n");
       }
     }
 
