@@ -215,6 +215,8 @@ split_strings(std::string const &str, std::string delimiters = ",")
     else
       value += str[i];
   }
+  if (!value.empty())
+    vec.push_back(value);
   return vec;
 }
 
