@@ -7,7 +7,7 @@ AC_PREREQ([2.65])
 # ====================
 m4_define([cups_filters_version_major],[1])
 m4_define([cups_filters_version_minor],[16])
-m4_define([cups_filters_version_micro],[2])
+m4_define([cups_filters_version_micro],[3])
 m4_define([cups_filters_version],[cups_filters_version_major.cups_filters_version_minor.cups_filters_version_micro])
 
 # =============
@@ -770,8 +770,8 @@ AS_IF([test x"$enable_werror" = "xyes"], [
 ])
 AS_IF([test x"$GCC" = "xyes"], [
 	# Be tough with warnings and produce less careless code
-	CFLAGS="$CFLAGS -Wall -pedantic -std=gnu99"
-	CXXFLAGS="$CXXFLAGS -Wall -pedantic" # -Weffc++" # TODO: enable when it does not print 1MB of warnings
+	CFLAGS="$CFLAGS -Wall -std=gnu11"
+	CXXFLAGS="$CXXFLAGS -Wall " # -Weffc++" # TODO: enable when it does not print 1MB of warnings
 ])
 CFLAGS="$CFLAGS -D_GNU_SOURCE"
 CXXFLAGS="$CXXFLAGS -D_GNU_SOURCE"
