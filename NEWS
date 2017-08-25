@@ -1,5 +1,39 @@
-NEWS - OpenPrinting CUPS Filters v1.16.3 - 2017-08-21
+NEWS - OpenPrinting CUPS Filters v1.17.1 - 2017-08-25
 -----------------------------------------------------
+
+CHANGES IN V1.17.1
+
+	- libcupsfilters: Added direct PNG printing to the PPD
+	  generator, the one of CUPS has it, too.
+	- libcupsfilters: In the PPD file generator renamed the option
+	  "cupsPrintQuality" into the IPP name "print-quality" as CUPS
+	  does not update the "print-quality=4" entry in the filter
+	  command line based on the setting of "cupsPrintQuality"
+	  (CUPS issue #5090).
+	- libcupsfilters: Completely redone the way how to determine
+	  the resolutions to use for the default resolution and print
+	  quality option in the PPDs generated for IPP
+	  printers. Resolution lists from IPP attributes are now read
+	  into sorted, duplicate-free lists with wrong resolutions
+	  removed or fixed. Resolutions actually used are the common
+	  ones between the supported PDLs, PDls with inferior maximum
+	  resolution or with broken resolution list are skipped
+	  (Debian bug #868360, Ubuntu bug #1712019, CUPS issue #5088,
+	  CUPS issue #5091).
+	- rastertopdf: Prefer RLE compression instead of Flate as
+	  there are HP printers where Flate is buggy.
+	- Build system: Fixed help mesage for "--enable-driverless"
+	  configure option (Bug #1405).
+
+CHANGES IN V1.17.0
+
+	- rastertopdf, rastertopclm, driverless, cups-browsed,
+	  libcupsfilters: Added support for the PCLm output format for
+	  driverless printing on Mopria and Wi-Fi Direct
+	  printers. This is the Google Summer of Code 2017 project of
+	  Sahil Arora (sahilarora dot 535 at gmail dot com). Thank you
+	  very much for your great work!  The PCLm support requires
+	  QPDF 7.0.0 or later.
 
 CHANGES IN V1.16.4
 
